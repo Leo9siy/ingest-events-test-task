@@ -19,7 +19,7 @@ session_maker = async_sessionmaker(
 
 
 async def get_session():
-    #await populate()
+    await populate()
 
     async with session_maker() as session:
         yield session
@@ -38,3 +38,11 @@ async def populate():
         await connect.run_sync(Base.metadata.create_all)
 
     print("Successful populated")
+
+
+@asynccontextmanager
+async def session_with_rollback():
+    async with session_maker() as session:
+        async with session.begin():
+            yield session
+            await session.rollback()

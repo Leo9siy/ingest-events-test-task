@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Index
+from sqlalchemy import String, DateTime, Index, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
 class EventModel(Base):
     __tablename__ = "events"
 
-    event_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    event_id: Mapped[UUID] = mapped_column(UUID, primary_key=True, index=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String, nullable=False)

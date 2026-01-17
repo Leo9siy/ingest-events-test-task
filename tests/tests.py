@@ -1,13 +1,12 @@
-from starlette.testclient import TestClient
+import uuid
 
-from main import app
+import pytest
 
 
-client = TestClient(app)
-
-def test_ingest_events():
-    response = client.post("/events", json=[{
-        "event_id": "uuid1",
+@pytest.mark.asyncio
+async def test_ingest_events(client):
+    response = await client.post("/events/", json=[{
+        "event_id": f"{str(uuid.uuid4())}",
         "occurred_at": "2026-01-16T00:00:00",
         "user_id": "user1",
         "event_type": "purchase",
@@ -16,8 +15,9 @@ def test_ingest_events():
     assert response.status_code == 200
 
 
-def test_get_dau():
-    response = client.get("/stats/dau?from=2026-01-01&to=2026-01-16")
+@pytest.mark.asyncio
+async def test_get_dau(client):
+    response = await client.get("/stats/dau/?from=2026-01-01&to=2026-01-16")
     assert response.status_code == 200
     assert "dau" in response.json()
 

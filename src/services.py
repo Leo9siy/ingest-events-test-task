@@ -1,17 +1,25 @@
 from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import select, insert, Integer
+from sqlalchemy import select, Integer
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import func
 
 from src.schemas import EventIn
-from src.database.connection import get_session
+from src.database.connection import get_session, session_with_rollback
 from src.database.models import EventModel
 
 
 async def get_event_service(session: AsyncSession = Depends(get_session)):
     return EventService(session)
+
+
+async def get_test_event_service(session: AsyncSession = Depends(session_with_rollback)):
+    return EventService(session)
+
+
+BATCH_SIZE = 1000
 
 
 class EventService:
@@ -45,20 +53,26 @@ class EventService:
             for event in events
         ]
 
-        stmt = (
-            insert(EventModel)
-            .values(rows)
-            .on_conflict_do_nothing(
-                index_elements=["event_id"]
-            )
-        )
+        inserted_total = 0
 
-        result = await self.session.execute(stmt)
+        for i in range(0, len(rows), BATCH_SIZE):
+            batch = rows[i:i + BATCH_SIZE]
+
+            stmt = (
+                insert(EventModel)
+                .values(batch)
+                .on_conflict_do_nothing(index_elements=["event_id"])
+                .returning(EventModel.event_id)
+            )
+
+            result = await self.session.execute(stmt)
+            inserted_total += len(result.scalars().all())
+
         await self.session.commit()
 
         return {
             "received": len(events),
-            "inserted": result.rowcount or 0,
+            "inserted": inserted_total,
         }
 
 
