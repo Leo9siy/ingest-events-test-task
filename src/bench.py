@@ -2,7 +2,8 @@ import asyncio, time, uuid
 from datetime import datetime, timezone, timedelta
 import httpx
 
-API = "http://127.0.0.1:8000"
+
+API = "http://127.0.0.1:8000/"
 N = 100_000
 BATCH = 2000
 
@@ -19,7 +20,7 @@ def make_event(i: int):
 async def main():
     events = [make_event(i) for i in range(N)]
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
         t0 = time.perf_counter()
         for i in range(0, N, BATCH):
             r = await client.post(f"{API}/events", json=events[i:i+BATCH])
@@ -35,6 +36,7 @@ async def main():
 
     print(f"Ingest {N}: {t1-t0:.2f}s => {N/(t1-t0):.0f} events/sec")
     print(f"DAU query: {t3-t2:.3f}s, resp={r.json()}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

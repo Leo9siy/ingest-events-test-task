@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import requests
 import typer
 from dateutil import parser
 from rich.progress import track

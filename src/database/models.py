@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, JSON, Index
+from sqlalchemy import String, DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -22,4 +22,3 @@ class EventModel(Base):
         Index("ix_events_occurred_at_event_type", "occurred_at", "event_type"),
         Index("ix_events_occurred_at_user_id", "occurred_at", "user_id"),
     )
-

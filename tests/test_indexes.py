@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import text
 
+
 @pytest.mark.asyncio
 async def test_events_indexes_exist(async_session):
     q = text("""

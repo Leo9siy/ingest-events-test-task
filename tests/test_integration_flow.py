@@ -33,5 +33,5 @@ async def test_ingest_then_dau(async_session, override_db_dependency):
         r = await ac.get(f"/stats/dau?from={today}&to={today}")
         assert r.status_code == 200
         body = r.json()
-        # если ты возвращаешь по дням списком:
+
         assert body["dau"][0]["dau"] == 2

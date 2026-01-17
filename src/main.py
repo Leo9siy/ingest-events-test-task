@@ -1,3 +1,5 @@
+import structlog
+
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -12,7 +14,6 @@ app.include_router(router=router)
 instrumentator = Instrumentator()
 instrumentator.instrument(app).expose(app)
 
-import structlog
 log = structlog.get_logger()
 
 @app.middleware("http")
@@ -21,7 +22,8 @@ async def log_requests(request, call_next):
     log.info("request",
              method=request.method,
              path=request.url.path,
-             status=resp.status_code)
+             status=resp.status_code
+             )
     return resp
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy import select, insert, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.functions import func
@@ -24,7 +24,10 @@ class EventService:
         try:
             return datetime.strptime(date, '%Y-%m-%d')
         except ValueError:
-            raise ValueError("Invalid date format. Use YYYY-MM-DD")
+            raise HTTPException(
+                status_code=500,
+                detail="Invalid date format. Use YYYY-MM-DD"
+            )
 
 
     async def ingest(self, events: list[EventIn]):
@@ -63,31 +66,34 @@ class EventService:
         from_dt = await self.parse_date(from_date)
         to_dt = await self.parse_date(to_date) + timedelta(days=1)
 
-        day = func.date(EventModel.occurred_at)
+        day = func.date(EventModel.occurred_at) # only date
 
         stmt = (
             select(
                 day.label("day"),
                 func.count(func.distinct(EventModel.user_id)).label("dau"),
             )
-            .where(EventModel.occurred_at >= from_dt, EventModel.occurred_at <= to_dt)
+            .where(EventModel.occurred_at >= from_dt, EventModel.occurred_at < to_dt)
             .group_by(day)
             .order_by(day)
         )
 
         res = await self.session.execute(stmt)
-        data = [{"date": str(d), "dau": c} for d, c in res.all()]
+        data = [{"date": str(day), "dau": dau} for day, dau in res.all()]
         return {"from": from_date, "to": to_date, "dau": data}
 
 
     async def get_top_events(self, from_date: str, to_date: str, limit: int):
         from_date = await self.parse_date(from_date)
-        to_date = await self.parse_date(to_date)
+        to_date = await self.parse_date(to_date) + timedelta(days=1)
 
         res = await self.session.execute(
-            select(EventModel.event_type, func.count().label("count"))
+            select(
+                EventModel.event_type,
+                func.count().label("count")
+            )
             .filter(EventModel.occurred_at >= from_date,
-                    EventModel.occurred_at <= to_date)
+                    EventModel.occurred_at < to_date)
             .group_by(EventModel.event_type)
             .order_by(func.count().desc())
             .limit(limit)
@@ -107,24 +113,26 @@ class EventService:
             )
             .where(EventModel.occurred_at >= start_date)
             .group_by(EventModel.user_id)
-            .cte("first_seen")
+            .cte("first_seen") # temporary table
         )
 
-        # cohort_week: неделя первого события
+        # cohort_week: first week
         cohort_cte = (
             select(
                 first_seen_cte.c.user_id,
-                func.date_trunc("week", first_seen_cte.c.first_seen).label("cohort_week"),
+                func.date_trunc("week", first_seen_cte.c.first_seen).label("cohort_week"), # округление до week
             ).cte("cohort")
         )
 
-        # week_index: разница недель между неделей события и cohort_week
+        # week_index: difference between occurred_at и cohort_week
+        # just вычисление
         week_index_expr = (
-                func.extract(
+                func.extract(  # to seconds
+                    # epoch это представление времени в секундах с 1970 года (UNIX-время).
                     "epoch",
                     func.date_trunc("week", EventModel.occurred_at) - cohort_cte.c.cohort_week
                 ) / (7 * 24 * 60 * 60)
-        ).cast(Integer)
+        ).cast(Integer) # to int
 
         stmt = (
             select(
@@ -134,7 +142,7 @@ class EventService:
             )
             .join(cohort_cte, cohort_cte.c.user_id == EventModel.user_id)
             .where(EventModel.occurred_at >= start_date)
-            .where(week_index_expr.between(0, windows))
+            .where(week_index_expr.between(0, windows)) # windows is count
             .group_by("cohort_week", "week_index")
             .order_by("cohort_week", "week_index")
         )
@@ -149,7 +157,11 @@ class EventService:
         for cw, wi, users in rows:
             base = cohort_size.get(cw, 0)
             pct = round(users / base * 100, 2) if base else 0.0
-            retention.setdefault(str(cw.date()), {})[int(wi)] = {"users": users, "pct": pct}
+            retention.setdefault(
+                str(cw.date()), {}
+            )[int(wi)] = {
+                "users": users, "pct": pct
+            }
 
         return {"start_date": start_date, "windows": windows, "retention": retention}
 
